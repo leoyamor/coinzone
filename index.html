@@ -515,6 +515,39 @@
       return res.json();
     }
 
+    async function selectCoinFromUpbit(name, symbol){
+      const st = document.getElementById("searchStatus");
+      const q = document.getElementById("q");
+      if (q) q.value = name || symbol || "";
+      setStatus(st, "CoinGecko에서 매칭 중...");
+
+      try{
+        const query = `${name || ""} ${symbol || ""}`.trim();
+        const data = await cgSearch(query);
+        const coins = data?.coins || [];
+        if (!coins.length) throw new Error("CoinGecko 매칭 실패");
+
+        const sym = String(symbol || "").toLowerCase();
+        const nameLower = String(name || "").toLowerCase();
+        let picked = coins.find(c =>
+          String(c.symbol || "").toLowerCase() === sym &&
+          String(c.name || "").toLowerCase() === nameLower
+        );
+        if (!picked) picked = coins.find(c => String(c.symbol || "").toLowerCase() === sym);
+        if (!picked) picked = coins[0];
+
+        await selectCoin({
+          id: picked.id,
+          name: picked.name,
+          symbol: picked.symbol,
+          thumb: picked.thumb
+        });
+        setStatus(st, `업비트 목록에서 ${picked.name} 선택됨`);
+      }catch(e){
+        setStatus(st, `업비트 → CoinGecko 매칭 실패: ${e.message || String(e)}`);
+      }
+    }
+
     async function cgCoinDetail(id){
       // market_data 포함
       const url = `${CG_BASE}/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
@@ -783,6 +816,7 @@
 
           const li = document.createElement("li");
           li.className = "item";
+          li.style.cursor = "pointer";
 
           li.innerHTML = `
             <div class="left">
@@ -800,6 +834,7 @@
             </div>
           `;
 
+          li.addEventListener("click", () => selectCoinFromUpbit(name, symbol));
           ul.appendChild(li);
         }
 

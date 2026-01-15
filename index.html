@@ -510,9 +510,7 @@
     // -----------------------------
     async function cgSearch(query){
       const url = `${CG_BASE}/search?query=${encodeURIComponent(query)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("CoinGecko 검색 실패");
-      return res.json();
+      return fetchJSON(url, "CoinGecko 검색 실패");
     }
 
     async function selectCoinFromUpbit(nameKo, nameEn, symbol){
@@ -554,17 +552,13 @@
     async function cgCoinDetail(id){
       // market_data 포함
       const url = `${CG_BASE}/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("CoinGecko 상세 조회 실패");
-      return res.json();
+      return fetchJSON(url, "CoinGecko 상세 조회 실패");
     }
 
     async function cgMarketChartYear(id){
       // 최근 365일 (vs_currency: krw)
       const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=365&interval=daily`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("CoinGecko 차트 데이터 조회 실패");
-      return res.json(); // { prices: [[ts, price], ...], ... }
+      return fetchJSON(url, "CoinGecko 차트 데이터 조회 실패"); // { prices: [[ts, price], ...], ... }
     }
 
     function renderSearchResults(items){

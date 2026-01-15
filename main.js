@@ -24,6 +24,17 @@ const compactFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const krwFormatter = new Intl.NumberFormat("ko-KR", {
+  style: "currency",
+  currency: "KRW",
+  maximumFractionDigits: 0,
+});
+
+const krwCompactFormatter = new Intl.NumberFormat("ko-KR", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 const setStatus = (message, type = "info") => {
   statusEl.textContent = message;
   statusEl.className = `status ${type}`;
@@ -138,7 +149,7 @@ const buildChart = (labels, prices, label) => {
   });
 };
 
-const buildUpbitChart = (labels, values) => {
+const buildUpbitChart = (labels, values, chartLabel, tooltipFormatter) => {
   if (upbitChart) {
     upbitChart.destroy();
   }
@@ -153,7 +164,7 @@ const buildUpbitChart = (labels, values) => {
       labels,
       datasets: [
         {
-          label: "24시간 누적 거래대금 (KRW)",
+          label: chartLabel,
           data: values,
           backgroundColor: "rgba(59, 130, 246, 0.35)",
           borderColor: "rgba(59, 130, 246, 0.8)",
@@ -176,8 +187,7 @@ const buildUpbitChart = (labels, values) => {
         },
         tooltip: {
           callbacks: {
-            label: (context) =>
-              `${compactFormatter.format(context.parsed.y)} KRW`,
+            label: (context) => tooltipFormatter(context.parsed.y),
           },
         },
       },
@@ -185,6 +195,7 @@ const buildUpbitChart = (labels, values) => {
         x: {
           ticks: {
             color: "#9aa4b2",
+            callback: (value) => `${krwCompactFormatter.format(value)}원`,
           },
           grid: {
             color: "rgba(255, 255, 255, 0.04)",
@@ -320,33 +331,63 @@ form.addEventListener("submit", async (event) => {
 
 renderHistory();
 
+const getUsdToKrwRate = async () => {
+  const rates = await fetchJson(`${API_BASE}/exchange_rates`);
+  const usd = rates?.rates?.usd?.value;
+  const krw = rates?.rates?.krw?.value;
+  if (!usd || !krw) {
+    throw new Error("환율 데이터를 불러오지 못했습니다.");
+  }
+  return krw / usd;
+};
+
 const loadUpbitChart = async () => {
   try {
-    const markets = await fetchJson(
-      "https://api.upbit.com/v1/market/all?isDetails=false"
-    );
-    const krwMarkets = markets
-      .filter((market) => market.market.startsWith("KRW-"))
-      .map((market) => market.market);
-
-    const chunkSize = 100;
     const allTickers = [];
-    for (let i = 0; i < krwMarkets.length; i += chunkSize) {
-      const chunk = krwMarkets.slice(i, i + chunkSize);
-      const tickers = await fetchJson(
-        `https://api.upbit.com/v1/ticker?markets=${chunk.join(",")}`
+    const perPage = 100;
+    const maxPages = 10;
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const data = await fetchJson(
+        `${API_BASE}/exchanges/upbit/tickers?per_page=${perPage}&page=${page}`
       );
-      allTickers.push(...tickers);
+      if (!data.tickers || data.tickers.length === 0) {
+        break;
+      }
+      allTickers.push(...data.tickers);
+      if (data.tickers.length < perPage) {
+        break;
+      }
     }
 
-    const topTickers = allTickers
-      .sort((a, b) => b.acc_trade_price_24h - a.acc_trade_price_24h)
-      .slice(0, 12);
+    const krwTickers = allTickers.filter((ticker) => ticker.target === "KRW");
+    const deduped = new Map();
+    krwTickers.forEach((ticker) => {
+      const key = ticker.coin_id || ticker.base;
+      if (!deduped.has(key)) {
+        deduped.set(key, ticker);
+      }
+    });
 
-    const labels = topTickers.map((ticker) => ticker.market.replace("KRW-", ""));
-    const values = topTickers.map((ticker) => ticker.acc_trade_price_24h);
+    const sorted = Array.from(deduped.values()).sort(
+      (a, b) =>
+        (b.converted_last?.usd || b.last || 0) -
+        (a.converted_last?.usd || a.last || 0)
+    );
 
-    buildUpbitChart(labels, values);
+    const usdToKrwRate = await getUsdToKrwRate();
+    const labels = sorted.map((ticker) => ticker.base);
+    const values = sorted.map((ticker) => {
+      const usdValue = ticker.converted_last?.usd || ticker.last || 0;
+      return usdValue * usdToKrwRate;
+    });
+
+    buildUpbitChart(
+      labels,
+      values,
+      "현재가 (KRW)",
+      (value) => krwFormatter.format(value)
+    );
   } catch (error) {
     if (upbitChartCanvas) {
       upbitChartCanvas.parentElement.innerHTML =

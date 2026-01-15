@@ -516,10 +516,8 @@
     }
 
     async function selectCoinFromUpbit(name, symbol){
-      const st = document.getElementById("searchStatus");
-      const q = document.getElementById("q");
-      if (q) q.value = name || symbol || "";
-      setStatus(st, "CoinGecko에서 매칭 중...");
+      const upbitStatus = document.getElementById("upbitStatus");
+      setStatus(upbitStatus, "CoinGecko에서 매칭 중...");
 
       try{
         const query = `${name || ""} ${symbol || ""}`.trim();
@@ -542,9 +540,9 @@
           symbol: picked.symbol,
           thumb: picked.thumb
         });
-        setStatus(st, `업비트 목록에서 ${picked.name} 선택됨`);
+        setStatus(upbitStatus, `업비트 목록에서 ${picked.name} 선택됨`);
       }catch(e){
-        setStatus(st, `업비트 → CoinGecko 매칭 실패: ${e.message || String(e)}`);
+        setStatus(upbitStatus, `업비트 → CoinGecko 매칭 실패: ${e.message || String(e)}`);
       }
     }
 

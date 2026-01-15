@@ -515,18 +515,23 @@
       return res.json();
     }
 
-    async function selectCoinFromUpbit(name, symbol){
+    async function selectCoinFromUpbit(nameKo, nameEn, symbol){
       const upbitStatus = document.getElementById("upbitStatus");
       setStatus(upbitStatus, "CoinGecko에서 매칭 중...");
 
       try{
-        const query = `${name || ""} ${symbol || ""}`.trim();
-        const data = await cgSearch(query);
-        const coins = data?.coins || [];
+        const baseName = nameEn || nameKo || "";
+        const query = `${baseName} ${symbol || ""}`.trim();
+        let data = await cgSearch(query);
+        let coins = data?.coins || [];
+        if (!coins.length && symbol){
+          data = await cgSearch(symbol);
+          coins = data?.coins || [];
+        }
         if (!coins.length) throw new Error("CoinGecko 매칭 실패");
 
         const sym = String(symbol || "").toLowerCase();
-        const nameLower = String(name || "").toLowerCase();
+        const nameLower = String(nameEn || nameKo || "").toLowerCase();
         let picked = coins.find(c =>
           String(c.symbol || "").toLowerCase() === sym &&
           String(c.name || "").toLowerCase() === nameLower
@@ -796,8 +801,10 @@
           allTickers.push(...t);
         }
 
-        // market -> korean_name 매핑
-        const nameMap = new Map(krw.map(x => [x.market, x.korean_name || x.english_name || x.market]));
+        // market -> { ko, en } 매핑
+        const nameMap = new Map(
+          krw.map(x => [x.market, { ko: x.korean_name || "", en: x.english_name || "" }])
+        );
 
         // 정렬: 거래대금(24h) 기준 내림차순
         allTickers.sort((a,b) => (b.acc_trade_price_24h || 0) - (a.acc_trade_price_24h || 0));
@@ -805,7 +812,8 @@
         for (const t of allTickers.slice(0, 200)){ // 너무 길어질 수 있어 상위 200개 표시
           const market = t.market;
           const symbol = String(market).replace("KRW-","");
-          const name = nameMap.get(market) || market;
+          const names = nameMap.get(market) || { ko: "", en: "" };
+          const name = names.ko || names.en || market;
 
           const price = t.trade_price;
           const chgRate = t.signed_change_rate; // e.g. 0.0123
@@ -832,7 +840,7 @@
             </div>
           `;
 
-          li.addEventListener("click", () => selectCoinFromUpbit(name, symbol));
+          li.addEventListener("click", () => selectCoinFromUpbit(names.ko, names.en, symbol));
           ul.appendChild(li);
         }
 

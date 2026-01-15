@@ -681,8 +681,14 @@
       const chartStatus = document.getElementById("chartStatus");
       setStatus(chartStatus, "차트 데이터를 불러오는 중...");
 
-      const chart = await cgMarketChart(selectedCoin.id, selectedRange);
-      const prices = chart?.prices || [];
+      let chart = await cgMarketChart(selectedCoin.id, selectedRange);
+      let prices = chart?.prices || [];
+      if (!prices.length && selectedRange === 1){
+        chart = await cgMarketChart(selectedCoin.id, 2);
+        const fallbackPrices = chart?.prices || [];
+        const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+        prices = fallbackPrices.filter(([ts]) => ts >= cutoff);
+      }
       if (!prices.length) throw new Error("차트 데이터가 비어 있습니다.");
 
       const labels = prices.map(([ts]) => {

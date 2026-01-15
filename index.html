@@ -1,79 +1,839 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>코인 정보 사이트</title>
-  <link href="/style.css" rel="stylesheet" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>코인 정보 사이트 (CoinGecko + Upbit + Chart.js)</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg1:#0b1220;
+      --bg2:#0a0f1a;
+      --card:#0f1a2b;
+      --card2:#0c1524;
+      --line:rgba(255,255,255,.10);
+      --text:#e7eefc;
+      --muted:rgba(231,238,252,.65);
+      --accent:#ff9f1a;
+      --accent2:#ffbf66;
+      --shadow: 0 18px 50px rgba(0,0,0,.55);
+      --radius:18px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(255,159,26,.25), transparent 55%),
+        radial-gradient(700px 450px at 10% 10%, rgba(106,168,255,.14), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      min-height:100vh;
+    }
+
+    header{
+      padding: 42px 18px 26px;
+      text-align:center;
+    }
+    header h1{
+      margin:0;
+      font-size: clamp(28px, 4vw, 54px);
+      letter-spacing:-0.5px;
+      font-weight: 800;
+    }
+    header p{
+      margin:10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .container{
+      width:min(1200px, 94vw);
+      margin: 0 auto 42px;
+    }
+
+    /* 2x2 layout */
+    .grid{
+      display:grid;
+      gap: 18px;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background: radial-gradient(600px 300px at 30% 0%, rgba(255,255,255,.10), transparent 55%);
+      pointer-events:none;
+    }
+
+    .panel-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+      position:relative;
+      z-index:1;
+    }
+    .panel-title{
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing:-0.2px;
+      margin: 0;
+    }
+
+    .chip{
+      border:1px solid rgba(255,159,26,.35);
+      color: var(--accent2);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(255,159,26,.08);
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    .panel-body{
+      position:relative;
+      z-index:1;
+      background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    /* search form */
+    .search-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .input{
+      width:100%;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(6,10,18,.55);
+      color: var(--text);
+      outline:none;
+    }
+    .input::placeholder{ color: rgba(231,238,252,.5); }
+
+    .btn{
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 0;
+      background: linear-gradient(180deg, #ffb34a, #ff8f00);
+      color:#1b1207;
+      font-weight: 800;
+      cursor:pointer;
+      min-width: 88px;
+    }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .hint{
+      margin-top:10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* lists */
+    .list{
+      margin:0;
+      padding:0;
+      list-style:none;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+      padding: 10px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.12);
+    }
+    .item:hover{ border-color: rgba(255,255,255,.18); }
+
+    .left{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .coin-icon{
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.10);
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      flex: 0 0 auto;
+    }
+    .coin-icon img{ width:100%; height:100%; object-fit:cover; }
+
+    .namewrap{
+      min-width:0;
+      line-height: 1.15;
+    }
+    .name{
+      font-weight: 800;
+      font-size: 14px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 360px;
+    }
+    .sub{
+      font-size: 12px;
+      color: var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 360px;
+    }
+
+    .right{
+      text-align:right;
+      flex: 0 0 auto;
+      font-variant-numeric: tabular-nums;
+    }
+    .price{
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .chg{
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .up{ color: #7CFFB2; }
+    .down{ color: #FF7C7C; }
+    .flat{ color: var(--muted); }
+
+    /* result panel split: info + chart */
+    .result-top{
+      display:flex;
+      gap: 14px;
+      flex-wrap:wrap;
+      align-items:flex-start;
+      justify-content:space-between;
+      margin-bottom: 12px;
+    }
+    .info-card{
+      flex: 1 1 340px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.12);
+      border-radius: 14px;
+      padding: 12px;
+      min-height: 104px;
+    }
+    .info-row{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      margin-bottom: 8px;
+    }
+    .info-title{
+      font-weight: 900;
+      font-size: 16px;
+      margin:0;
+    }
+    .meta{
+      font-size: 12px;
+      color: var(--muted);
+      margin: 4px 0 0;
+    }
+    .kpis{
+      display:flex;
+      gap: 12px;
+      flex-wrap:wrap;
+      margin-top: 10px;
+    }
+    .kpi{
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .kpi b{ color: var(--text); }
+
+    .chart-wrap{
+      width:100%;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.12);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    canvas{ width:100% !important; height: 260px !important; }
+
+    /* Upbit panel */
+    .toolbar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .small-btn{
+      padding: 9px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+      cursor:pointer;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .scroll{
+      max-height: 360px;
+      overflow:auto;
+      padding-right: 6px;
+    }
+    .scroll::-webkit-scrollbar{ width: 10px; }
+    .scroll::-webkit-scrollbar-thumb{
+      background: rgba(255,255,255,.14);
+      border-radius: 999px;
+    }
+
+    .status{
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px){
+      .grid{
+        grid-template-columns: 1fr;
+      }
+      .name{ max-width: 220px; }
+      .sub{ max-width: 220px; }
+      canvas{ height: 240px !important; }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="page">
-    <header class="hero">
-      <p class="eyebrow">Coin Explorer</p>
-      <h1>코인 정보 사이트</h1>
-      <p class="lead">
-        CoinGecko 무료 API로 코인을 검색하고 최근 1년 시세를 빠르게 확인하세요.
-      </p>
-    </header>
+  <header>
+    <h1>코인 정보 사이트</h1>
+    <p>CoinGecko 무료 API로 코인을 검색하고 최근 1년 시세를 빠르게 확인하세요. (차트: Chart.js)</p>
+  </header>
 
-    <main class="content">
-      <section class="panel search-panel">
-        <div>
-          <h2>코인 검색</h2>
-          <p class="muted">
-            예: Bitcoin, ETH, Solana. 검색 결과 중 가장 일치하는 코인을 선택합니다.
-          </p>
+  <main class="container">
+    <section class="grid">
+      <!-- Left-Top: Search -->
+      <article class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">코인 검색 폼</h2>
         </div>
-        <form id="search-form" class="search-form">
-          <label class="sr-only" for="coin-query">코인 이름 또는 심볼</label>
-          <input
-            id="coin-query"
-            name="coin-query"
-            type="text"
-            placeholder="코인 이름 또는 심볼"
-            autocomplete="off"
-            required
-          />
-          <button type="submit">검색</button>
-        </form>
-        <p id="status" class="status">코인을 검색하면 1년 시세를 보여줍니다.</p>
-        <div class="history">
-          <p class="history-title">최근 조회</p>
-          <div id="history-list" class="history-list">
-            <span class="muted">아직 검색한 코인이 없습니다.</span>
+        <div class="panel-body">
+          <div class="search-row">
+            <input id="q" class="input" placeholder="예: bitcoin, ethereum, solana, ripple..." />
+            <button id="searchBtn" class="btn">검색</button>
+          </div>
+          <div class="hint">
+            검색 후 결과 목록에서 코인을 클릭하면 우측 상단에 정보 + 최근 1년 차트가 표시됩니다.
+          </div>
+
+          <div style="margin-top:14px;">
+            <ul id="searchList" class="list"></ul>
+            <div id="searchStatus" class="status"></div>
           </div>
         </div>
-      </section>
+      </article>
 
-      <section class="panel chart-panel">
-        <div class="chart-header">
-          <div>
-            <h2 id="coin-name">코인을 검색해 주세요</h2>
-            <p id="coin-meta" class="muted">선택된 코인이 없습니다.</p>
+      <!-- Right-Top: Result + Chart -->
+      <article class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">코인 검색 결과 폼</h2>
+          <div class="chip">지난 1년</div>
+        </div>
+
+        <div class="panel-body">
+          <div class="result-top">
+            <div class="info-card" id="coinInfo">
+              <p style="margin:0;color:var(--muted);font-size:13px;">
+                코인을 선택하면 여기에서 상세 정보를 보여줍니다.
+              </p>
+            </div>
           </div>
-          <div class="badge">지난 1년</div>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="price-chart" aria-label="코인 가격 차트" role="img"></canvas>
-        </div>
-      </section>
 
-      <section class="panel chart-panel">
-        <div class="chart-header">
-          <div>
-            <h2>업비트 상장 코인</h2>
-            <p class="muted">CoinGecko 기준 현재가 (KRW 환산)</p>
+          <div class="chart-wrap">
+            <canvas id="chart"></canvas>
+            <div id="chartStatus" class="status"></div>
           </div>
-          <div class="badge">Upbit</div>
         </div>
-        <div class="chart-wrap scroll">
-          <canvas id="upbit-chart" aria-label="업비트 코인 목록 차트" role="img"></canvas>
-        </div>
-      </section>
-    </main>
-  </div>
+      </article>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script defer type="text/javascript" src="/main.js"></script>
+      <!-- Left-Bottom: Recent -->
+      <article class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">최근 조회 폼</h2>
+          <div class="toolbar">
+            <button id="clearRecent" class="small-btn">최근 조회 비우기</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <ul id="recentList" class="list"></ul>
+          <div id="recentStatus" class="status"></div>
+        </div>
+      </article>
+
+      <!-- Right-Bottom: Upbit -->
+      <article class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">업비트 거래 코인 목록</h2>
+          <div class="toolbar">
+            <button id="reloadUpbit" class="small-btn">새로고침</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="scroll">
+            <ul id="upbitList" class="list"></ul>
+          </div>
+          <div id="upbitStatus" class="status"></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    // -----------------------------
+    // Config
+    // -----------------------------
+    const CG_BASE = "https://api.coingecko.com/api/v3";
+    const UPBIT_MARKETS = "https://api.upbit.com/v1/market/all?isDetails=false";
+    const UPBIT_TICKER = "https://api.upbit.com/v1/ticker?markets=";
+
+    const RECENT_KEY = "recent_coins_v1";
+    const MAX_RECENT = 10;
+
+    // Chart state
+    let chartInstance = null;
+
+    // -----------------------------
+    // Helpers
+    // -----------------------------
+    function formatKRW(n){
+      if (n === null || n === undefined || Number.isNaN(Number(n))) return "-";
+      try { return new Intl.NumberFormat("ko-KR").format(Number(n)); }
+      catch { return String(n); }
+    }
+
+    function pct(x){
+      if (x === null || x === undefined || Number.isNaN(Number(x))) return "-";
+      return (Number(x) * 100).toFixed(2) + "%";
+    }
+
+    function escapeHTML(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function setStatus(el, msg){
+      el.textContent = msg || "";
+    }
+
+    function saveRecent(item){
+      // item: { id, name, symbol, thumb }
+      const raw = localStorage.getItem(RECENT_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      const next = [item, ...list.filter(x => x.id !== item.id)].slice(0, MAX_RECENT);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      renderRecent();
+    }
+
+    function getRecent(){
+      const raw = localStorage.getItem(RECENT_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }
+
+    function clearRecent(){
+      localStorage.removeItem(RECENT_KEY);
+      renderRecent();
+    }
+
+    // -----------------------------
+    // CoinGecko: Search + Select
+    // -----------------------------
+    async function cgSearch(query){
+      const url = `${CG_BASE}/search?query=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("CoinGecko 검색 실패");
+      return res.json();
+    }
+
+    async function cgCoinDetail(id){
+      // market_data 포함
+      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("CoinGecko 상세 조회 실패");
+      return res.json();
+    }
+
+    async function cgMarketChartYear(id){
+      // 최근 365일 (vs_currency: krw)
+      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=365&interval=daily`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("CoinGecko 차트 데이터 조회 실패");
+      return res.json(); // { prices: [[ts, price], ...], ... }
+    }
+
+    function renderSearchResults(items){
+      const ul = document.getElementById("searchList");
+      ul.innerHTML = "";
+
+      if (!items.length){
+        ul.innerHTML = `<li class="status" style="list-style:none;color:var(--muted);">검색 결과가 없습니다.</li>`;
+        return;
+      }
+
+      for (const c of items){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.style.cursor = "pointer";
+
+        li.innerHTML = `
+          <div class="left">
+            <div class="coin-icon">${c.thumb ? `<img src="${escapeHTML(c.thumb)}" alt="">` : ""}</div>
+            <div class="namewrap">
+              <div class="name">${escapeHTML(c.name)} <span style="color:var(--muted);font-weight:700;">(${escapeHTML((c.symbol||"").toUpperCase())})</span></div>
+              <div class="sub">CoinGecko ID: ${escapeHTML(c.id)}</div>
+            </div>
+          </div>
+          <div class="right">
+            <div class="price" style="color:var(--accent2);">선택</div>
+            <div class="chg" style="color:var(--muted);">상세+차트</div>
+          </div>
+        `;
+
+        li.addEventListener("click", () => selectCoin({
+          id: c.id,
+          name: c.name,
+          symbol: c.symbol,
+          thumb: c.thumb
+        }));
+
+        ul.appendChild(li);
+      }
+    }
+
+    async function selectCoin(coin){
+      // 최근 조회 저장
+      saveRecent(coin);
+
+      const infoEl = document.getElementById("coinInfo");
+      const chartStatus = document.getElementById("chartStatus");
+
+      infoEl.innerHTML = `
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          <b style="color:var(--text);">불러오는 중...</b> ${escapeHTML(coin.name)} (${escapeHTML((coin.symbol||"").toUpperCase())})
+        </p>
+      `;
+      setStatus(chartStatus, "차트 데이터를 불러오는 중...");
+
+      try{
+        // 상세 + 차트 병렬
+        const [detail, chart] = await Promise.all([
+          cgCoinDetail(coin.id),
+          cgMarketChartYear(coin.id)
+        ]);
+
+        // 상세 정보 렌더
+        const img = detail?.image?.small || coin.thumb || "";
+        const name = detail?.name || coin.name || coin.id;
+        const symbol = (detail?.symbol || coin.symbol || "").toUpperCase();
+
+        const price = detail?.market_data?.current_price?.krw ?? null;
+        const mcap = detail?.market_data?.market_cap?.krw ?? null;
+        const vol = detail?.market_data?.total_volume?.krw ?? null;
+        const chg24 = detail?.market_data?.price_change_percentage_24h ?? null;
+
+        const chgClass = (chg24 === null || chg24 === undefined) ? "flat" : (chg24 >= 0 ? "up" : "down");
+        const chgSign = (chg24 === null || chg24 === undefined) ? "" : (chg24 >= 0 ? "+" : "-");
+
+        infoEl.innerHTML = `
+          <div class="info-row">
+            <div class="coin-icon" style="width:34px;height:34px;">
+              ${img ? `<img src="${escapeHTML(img)}" alt="">` : ""}
+            </div>
+            <div>
+              <p class="info-title" style="margin:0;">${escapeHTML(name)} <span style="color:var(--muted);font-weight:800;">(${escapeHTML(symbol)})</span></p>
+              <p class="meta">CoinGecko ID: ${escapeHTML(coin.id)}</p>
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi">현재가(KRW): <b>${formatKRW(price)}</b></div>
+            <div class="kpi ${chgClass}">24h: <b class="${chgClass}">${chgSign}${(chg24===null||chg24===undefined) ? "-" : chg24.toFixed(2)}%</b></div>
+            <div class="kpi">시총(KRW): <b>${formatKRW(mcap)}</b></div>
+            <div class="kpi">거래대금(KRW): <b>${formatKRW(vol)}</b></div>
+          </div>
+        `;
+
+        // 차트 렌더
+        const prices = chart?.prices || [];
+        if (!prices.length) throw new Error("차트 데이터가 비어 있습니다.");
+
+        const labels = prices.map(([ts]) => {
+          const d = new Date(ts);
+          // yyyy-mm
+          const y = d.getFullYear();
+          const m = String(d.getMonth()+1).padStart(2,"0");
+          const day = String(d.getDate()).padStart(2,"0");
+          return `${y}-${m}-${day}`;
+        });
+        const data = prices.map(([,p]) => p);
+
+        renderChart(labels, data, `${name} (KRW) - 최근 1년`);
+        setStatus(chartStatus, `데이터 포인트: ${data.length.toLocaleString("ko-KR")}개`);
+      }catch(e){
+        console.error(e);
+        infoEl.innerHTML = `<p style="margin:0;color:#ffb0b0;font-size:13px;">오류: ${escapeHTML(e.message || String(e))}</p>`;
+        setStatus(chartStatus, "차트를 표시할 수 없습니다. (API 제한/네트워크/CORS 가능)");
+        destroyChart();
+      }
+    }
+
+    function destroyChart(){
+      if (chartInstance){
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+    }
+
+    function renderChart(labels, data, title){
+      const ctx = document.getElementById("chart");
+      destroyChart();
+
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: title,
+            data,
+            tension: 0.22,
+            pointRadius: 0,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: true, labels: { color: "rgba(231,238,252,.85)" } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  return ` ${formatKRW(v)} KRW`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "rgba(231,238,252,.65)", maxTicksLimit: 8 },
+              grid: { color: "rgba(255,255,255,.06)" }
+            },
+            y: {
+              ticks: {
+                color: "rgba(231,238,252,.65)",
+                callback: (v) => formatKRW(v)
+              },
+              grid: { color: "rgba(255,255,255,.06)" }
+            }
+          }
+        }
+      });
+    }
+
+    // -----------------------------
+    // Recent
+    // -----------------------------
+    function renderRecent(){
+      const list = getRecent();
+      const ul = document.getElementById("recentList");
+      const st = document.getElementById("recentStatus");
+
+      ul.innerHTML = "";
+      if (!list.length){
+        setStatus(st, "최근 조회 내역이 없습니다.");
+        return;
+      }
+      setStatus(st, "");
+
+      for (const c of list){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.style.cursor = "pointer";
+
+        li.innerHTML = `
+          <div class="left">
+            <div class="coin-icon">${c.thumb ? `<img src="${escapeHTML(c.thumb)}" alt="">` : ""}</div>
+            <div class="namewrap">
+              <div class="name">${escapeHTML(c.name)} <span style="color:var(--muted);font-weight:700;">(${escapeHTML((c.symbol||"").toUpperCase())})</span></div>
+              <div class="sub">${escapeHTML(c.id)}</div>
+            </div>
+          </div>
+          <div class="right">
+            <div class="price" style="color:var(--accent2);">열기</div>
+            <div class="chg" style="color:var(--muted);">상세+차트</div>
+          </div>
+        `;
+        li.addEventListener("click", () => selectCoin(c));
+        ul.appendChild(li);
+      }
+    }
+
+    // -----------------------------
+    // Upbit: KRW markets + tickers
+    // -----------------------------
+    async function upbitLoadKRWList(){
+      const upbitStatus = document.getElementById("upbitStatus");
+      const ul = document.getElementById("upbitList");
+
+      ul.innerHTML = "";
+      setStatus(upbitStatus, "업비트 KRW 마켓 목록을 불러오는 중...");
+
+      try{
+        const res = await fetch(UPBIT_MARKETS);
+        if (!res.ok) throw new Error("업비트 마켓 목록 조회 실패");
+        const markets = await res.json();
+
+        const krw = markets.filter(m => String(m.market || "").startsWith("KRW-"));
+        // 티커는 100개 단위로 호출하는 것이 안전 (Upbit 제한/URL 길이 고려)
+        const chunks = [];
+        for (let i=0;i<krw.length;i+=100) chunks.push(krw.slice(i,i+100));
+
+        const allTickers = [];
+        for (const ch of chunks){
+          const mk = ch.map(x => x.market).join(",");
+          const r = await fetch(UPBIT_TICKER + encodeURIComponent(mk));
+          if (!r.ok) throw new Error("업비트 티커 조회 실패");
+          const t = await r.json();
+          allTickers.push(...t);
+        }
+
+        // market -> korean_name 매핑
+        const nameMap = new Map(krw.map(x => [x.market, x.korean_name || x.english_name || x.market]));
+
+        // 정렬: 거래대금(24h) 기준 내림차순
+        allTickers.sort((a,b) => (b.acc_trade_price_24h || 0) - (a.acc_trade_price_24h || 0));
+
+        for (const t of allTickers.slice(0, 200)){ // 너무 길어질 수 있어 상위 200개 표시
+          const market = t.market;
+          const symbol = String(market).replace("KRW-","");
+          const name = nameMap.get(market) || market;
+
+          const price = t.trade_price;
+          const chgRate = t.signed_change_rate; // e.g. 0.0123
+          const chgClass = (chgRate === 0) ? "flat" : (chgRate > 0 ? "up" : "down");
+          const sign = chgRate > 0 ? "+" : "";
+
+          const li = document.createElement("li");
+          li.className = "item";
+
+          li.innerHTML = `
+            <div class="left">
+              <div class="coin-icon" style="background:rgba(255,255,255,.08);">
+                <span style="font-size:11px;font-weight:900;color:rgba(231,238,252,.85)">${escapeHTML(symbol.slice(0,3))}</span>
+              </div>
+              <div class="namewrap">
+                <div class="name">${escapeHTML(name)} <span style="color:var(--muted);font-weight:800;">(${escapeHTML(symbol)})</span></div>
+                <div class="sub">${escapeHTML(market)} · 24h 거래대금: ${formatKRW(t.acc_trade_price_24h)} KRW</div>
+              </div>
+            </div>
+            <div class="right">
+              <div class="price">${formatKRW(price)}원</div>
+              <div class="chg ${chgClass}">${sign}${pct(chgRate)}</div>
+            </div>
+          `;
+
+          ul.appendChild(li);
+        }
+
+        setStatus(upbitStatus, `KRW 마켓 ${krw.length.toLocaleString("ko-KR")}개 중 상위 200개(거래대금 기준) 표시`);
+      }catch(e){
+        console.error(e);
+        setStatus(upbitStatus, `오류: ${e.message || String(e)}`);
+      }
+    }
+
+    // -----------------------------
+    // Wire up UI
+    // -----------------------------
+    function init(){
+      const q = document.getElementById("q");
+      const btn = document.getElementById("searchBtn");
+      const st = document.getElementById("searchStatus");
+
+      async function doSearch(){
+        const query = q.value.trim();
+        if (!query){
+          setStatus(st, "검색어를 입력하세요.");
+          document.getElementById("searchList").innerHTML = "";
+          return;
+        }
+
+        btn.disabled = true;
+        setStatus(st, "CoinGecko에서 검색 중...");
+        try{
+          const data = await cgSearch(query);
+          const coins = (data?.coins || []).slice(0, 12); // 상위 12개
+          renderSearchResults(coins);
+          setStatus(st, `검색 결과 ${coins.length}개 표시`);
+        }catch(e){
+          console.error(e);
+          setStatus(st, `오류: ${e.message || String(e)}`);
+        }finally{
+          btn.disabled = false;
+        }
+      }
+
+      btn.addEventListener("click", doSearch);
+      q.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") doSearch();
+      });
+
+      document.getElementById("clearRecent").addEventListener("click", clearRecent);
+      document.getElementById("reloadUpbit").addEventListener("click", upbitLoadKRWList);
+
+      renderRecent();
+      upbitLoadKRWList();
+    }
+
+    init();
+  </script>
 </body>
 </html>

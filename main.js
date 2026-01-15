@@ -6,8 +6,10 @@ const statusEl = document.getElementById("status");
 const coinNameEl = document.getElementById("coin-name");
 const coinMetaEl = document.getElementById("coin-meta");
 const chartCanvas = document.getElementById("price-chart");
+const historyListEl = document.getElementById("history-list");
 
 let priceChart = null;
+let recentCoins = [];
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -23,6 +25,29 @@ const compactFormatter = new Intl.NumberFormat("en-US", {
 const setStatus = (message, type = "info") => {
   statusEl.textContent = message;
   statusEl.className = `status ${type}`;
+};
+
+const KOREAN_ALIASES = {
+  비트코인: "bitcoin",
+  이더리움: "ethereum",
+  이더: "ethereum",
+  리플: "ripple",
+  솔라나: "solana",
+  도지: "dogecoin",
+  도지코인: "dogecoin",
+  폴카닷: "polkadot",
+  에이다: "cardano",
+  카르다노: "cardano",
+  트론: "tron",
+  체인링크: "chainlink",
+  라이트코인: "litecoin",
+  유니스왑: "uniswap",
+  아발란체: "avalanche-2",
+};
+
+const resolveAlias = (query) => {
+  const trimmed = query.trim();
+  return KOREAN_ALIASES[trimmed] || trimmed;
 };
 
 const pickBestMatch = (coins, query) => {
@@ -130,6 +155,37 @@ const updateCoinMeta = (coin, latestPrice, previousPrice) => {
   )} · 연간 변동 ${changeLabel}`;
 };
 
+const renderHistory = () => {
+  historyListEl.innerHTML = "";
+
+  if (recentCoins.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "아직 검색한 코인이 없습니다.";
+    historyListEl.appendChild(empty);
+    return;
+  }
+
+  recentCoins.forEach((coin) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "history-chip";
+    button.textContent = `${coin.name} (${coin.symbol.toUpperCase()})`;
+    button.addEventListener("click", () => {
+      queryInput.value = coin.name;
+      form.requestSubmit();
+    });
+    historyListEl.appendChild(button);
+  });
+};
+
+const addToHistory = (coin) => {
+  recentCoins = recentCoins.filter((item) => item.id !== coin.id);
+  recentCoins.unshift(coin);
+  recentCoins = recentCoins.slice(0, 6);
+  renderHistory();
+};
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = queryInput.value.trim();
@@ -138,6 +194,7 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  const resolvedQuery = resolveAlias(query);
   const submitButton = form.querySelector("button");
   submitButton.disabled = true;
   submitButton.textContent = "불러오는 중...";
@@ -145,14 +202,14 @@ form.addEventListener("submit", async (event) => {
 
   try {
     const searchData = await fetchJson(
-      `${API_BASE}/search?query=${encodeURIComponent(query)}`
+      `${API_BASE}/search?query=${encodeURIComponent(resolvedQuery)}`
     );
 
     if (!searchData.coins || searchData.coins.length === 0) {
       throw new Error("검색 결과가 없습니다.");
     }
 
-    const coin = pickBestMatch(searchData.coins, query);
+    const coin = pickBestMatch(searchData.coins, resolvedQuery);
     const chartData = await fetchJson(
       `${API_BASE}/coins/${coin.id}/market_chart?vs_currency=usd&days=365`
     );
@@ -174,6 +231,7 @@ form.addEventListener("submit", async (event) => {
 
     buildChart(labels, prices, `${coin.name} 1년 시세 (USD)`);
     updateCoinMeta(coin, latestPrice, previousPrice);
+    addToHistory(coin);
 
     setStatus(
       `${coin.name} 데이터를 불러왔습니다. 1년 평균 가격: ${compactFormatter.format(
@@ -191,3 +249,5 @@ form.addEventListener("submit", async (event) => {
     submitButton.textContent = "검색";
   }
 });
+
+renderHistory();

@@ -308,6 +308,10 @@
       font-weight: 800;
       font-size: 12px;
     }
+    .range-btn.active{
+      border-color: rgba(255,255,255,.35);
+      background: rgba(255,255,255,.12);
+    }
 
     .scroll{
       max-height: 360px;
@@ -371,7 +375,13 @@
       <article class="panel">
         <div class="panel-head">
           <h2 class="panel-title">코인 시세 내역</h2>
-          <div class="chip">지난 1년</div>
+          <div class="toolbar">
+            <button class="small-btn range-btn" data-range="1">1일</button>
+            <button class="small-btn range-btn" data-range="7">1주</button>
+            <button class="small-btn range-btn" data-range="30">1개월</button>
+            <button class="small-btn range-btn" data-range="90">3개월</button>
+            <button class="small-btn range-btn active" data-range="365">1년</button>
+          </div>
         </div>
 
         <div class="panel-body">
@@ -556,9 +566,10 @@
       return fetchJSON(url, "CoinGecko 상세 조회 실패");
     }
 
-    async function cgMarketChartYear(id){
-      // 최근 365일 (vs_currency: krw)
-      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=365&interval=daily`;
+    async function cgMarketChart(id, days){
+      // 기간별 차트 (vs_currency: krw)
+      const interval = days <= 2 ? "hourly" : "daily";
+      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=${days}&interval=${interval}`;
       return fetchJSON(url, "CoinGecko 차트 데이터 조회 실패"); // { prices: [[ts, price], ...], ... }
     }
 
@@ -601,7 +612,11 @@
       }
     }
 
+    let selectedCoin = null;
+    let selectedRange = 365;
+
     async function selectCoin(coin){
+      selectedCoin = coin;
       // 최근 조회 저장
       saveRecent(coin);
 
@@ -619,7 +634,7 @@
         // 상세 + 차트 병렬
         const [detail, chart] = await Promise.all([
           cgCoinDetail(coin.id),
-          cgMarketChartYear(coin.id)
+          cgMarketChart(coin.id, selectedRange)
         ]);
 
         // 상세 정보 렌더
@@ -668,7 +683,8 @@
         });
         const data = prices.map(([,p]) => p);
 
-        renderChart(labels, data, `${name} (KRW) - 최근 1년`);
+        const rangeLabel = rangeLabelForDays(selectedRange);
+        renderChart(labels, data, `${name} (KRW) - ${rangeLabel}`);
         setStatus(chartStatus, `데이터 포인트: ${data.length.toLocaleString("ko-KR")}개`);
       }catch(e){
         console.error(e);
@@ -676,6 +692,14 @@
         setStatus(chartStatus, "차트를 표시할 수 없습니다. (API 제한/네트워크/CORS 가능)");
         destroyChart();
       }
+    }
+
+    function rangeLabelForDays(days){
+      if (days === 1) return "1일";
+      if (days === 7) return "1주";
+      if (days === 30) return "1개월";
+      if (days === 90) return "3개월";
+      return "1년";
     }
 
     function destroyChart(){
@@ -881,6 +905,18 @@
           btn.disabled = false;
         }
       }
+
+      document.querySelectorAll(".range-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const days = Number(btn.dataset.range || "365");
+          selectedRange = days;
+          document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          if (selectedCoin){
+            await selectCoin(selectedCoin);
+          }
+        });
+      });
 
       btn.addEventListener("click", doSearch);
       q.addEventListener("keydown", (e) => {

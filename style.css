@@ -250,6 +250,28 @@ button:disabled {
   height: 360px;
 }
 
+.chart-wrap.scroll {
+  width: 7cm;
+  height: 15cm;
+  max-width: 100%;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.chart-wrap.scroll canvas {
+  min-height: 360px;
+}
+
+@media (min-width: 960px) {
+  .content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chart-panel {
+    min-height: 460px;
+  }
+}
+
 canvas {
   width: 100%;
   height: 100%;

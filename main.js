@@ -6,9 +6,11 @@ const statusEl = document.getElementById("status");
 const coinNameEl = document.getElementById("coin-name");
 const coinMetaEl = document.getElementById("coin-meta");
 const chartCanvas = document.getElementById("price-chart");
+const upbitChartCanvas = document.getElementById("upbit-chart");
 const historyListEl = document.getElementById("history-list");
 
 let priceChart = null;
+let upbitChart = null;
 let recentCoins = [];
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
@@ -136,6 +138,72 @@ const buildChart = (labels, prices, label) => {
   });
 };
 
+const buildUpbitChart = (labels, values) => {
+  if (upbitChart) {
+    upbitChart.destroy();
+  }
+
+  const minHeight = 360;
+  const rowHeight = 26;
+  upbitChartCanvas.height = Math.max(minHeight, labels.length * rowHeight);
+
+  upbitChart = new Chart(upbitChartCanvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "24시간 누적 거래대금 (KRW)",
+          data: values,
+          backgroundColor: "rgba(59, 130, 246, 0.35)",
+          borderColor: "rgba(59, 130, 246, 0.8)",
+          borderWidth: 1.5,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      plugins: {
+        legend: {
+          labels: {
+            color: "#f4f1ea",
+            font: {
+              family: "Space Grotesk",
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (context) =>
+              `${compactFormatter.format(context.parsed.y)} KRW`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: "#9aa4b2",
+          },
+          grid: {
+            color: "rgba(255, 255, 255, 0.04)",
+          },
+        },
+        y: {
+          ticks: {
+            color: "#9aa4b2",
+            autoSkip: false,
+          },
+          grid: {
+            color: "rgba(255, 255, 255, 0.04)",
+          },
+        },
+      },
+    },
+  });
+};
+
 const updateCoinMeta = (coin, latestPrice, previousPrice) => {
   const change =
     previousPrice && latestPrice
@@ -251,3 +319,40 @@ form.addEventListener("submit", async (event) => {
 });
 
 renderHistory();
+
+const loadUpbitChart = async () => {
+  try {
+    const markets = await fetchJson(
+      "https://api.upbit.com/v1/market/all?isDetails=false"
+    );
+    const krwMarkets = markets
+      .filter((market) => market.market.startsWith("KRW-"))
+      .map((market) => market.market);
+
+    const chunkSize = 100;
+    const allTickers = [];
+    for (let i = 0; i < krwMarkets.length; i += chunkSize) {
+      const chunk = krwMarkets.slice(i, i + chunkSize);
+      const tickers = await fetchJson(
+        `https://api.upbit.com/v1/ticker?markets=${chunk.join(",")}`
+      );
+      allTickers.push(...tickers);
+    }
+
+    const topTickers = allTickers
+      .sort((a, b) => b.acc_trade_price_24h - a.acc_trade_price_24h)
+      .slice(0, 12);
+
+    const labels = topTickers.map((ticker) => ticker.market.replace("KRW-", ""));
+    const values = topTickers.map((ticker) => ticker.acc_trade_price_24h);
+
+    buildUpbitChart(labels, values);
+  } catch (error) {
+    if (upbitChartCanvas) {
+      upbitChartCanvas.parentElement.innerHTML =
+        '<p class="muted">업비트 데이터를 불러오지 못했습니다.</p>';
+    }
+  }
+};
+
+loadUpbitChart();

@@ -613,6 +613,7 @@
     }
 
     let selectedCoin = null;
+    let selectedCoinDisplayName = null;
     let selectedRange = 365;
 
     async function selectCoin(coin){
@@ -631,11 +632,7 @@
       setStatus(chartStatus, "차트 데이터를 불러오는 중...");
 
       try{
-        // 상세 + 차트 병렬
-        const [detail, chart] = await Promise.all([
-          cgCoinDetail(coin.id),
-          cgMarketChart(coin.id, selectedRange)
-        ]);
+        const detail = await cgCoinDetail(coin.id);
 
         // 상세 정보 렌더
         const img = detail?.image?.small || coin.thumb || "";
@@ -669,23 +666,8 @@
           </div>
         `;
 
-        // 차트 렌더
-        const prices = chart?.prices || [];
-        if (!prices.length) throw new Error("차트 데이터가 비어 있습니다.");
-
-        const labels = prices.map(([ts]) => {
-          const d = new Date(ts);
-          // yyyy-mm
-          const y = d.getFullYear();
-          const m = String(d.getMonth()+1).padStart(2,"0");
-          const day = String(d.getDate()).padStart(2,"0");
-          return `${y}-${m}-${day}`;
-        });
-        const data = prices.map(([,p]) => p);
-
-        const rangeLabel = rangeLabelForDays(selectedRange);
-        renderChart(labels, data, `${name} (KRW) - ${rangeLabel}`);
-        setStatus(chartStatus, `데이터 포인트: ${data.length.toLocaleString("ko-KR")}개`);
+        selectedCoinDisplayName = name;
+        await updateChartRange();
       }catch(e){
         console.error(e);
         infoEl.innerHTML = `<p style="margin:0;color:#ffb0b0;font-size:13px;">오류: ${escapeHTML(e.message || String(e))}</p>`;
@@ -694,12 +676,36 @@
       }
     }
 
+    async function updateChartRange(){
+      if (!selectedCoin) return;
+      const chartStatus = document.getElementById("chartStatus");
+      setStatus(chartStatus, "차트 데이터를 불러오는 중...");
+
+      const chart = await cgMarketChart(selectedCoin.id, selectedRange);
+      const prices = chart?.prices || [];
+      if (!prices.length) throw new Error("차트 데이터가 비어 있습니다.");
+
+      const labels = prices.map(([ts]) => {
+        const d = new Date(ts);
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,"0");
+        const day = String(d.getDate()).padStart(2,"0");
+        return `${y}-${m}-${day}`;
+      });
+      const data = prices.map(([,p]) => p);
+
+      const rangeLabel = rangeLabelForDays(selectedRange);
+      const titleName = selectedCoinDisplayName || selectedCoin.name || selectedCoin.id;
+      renderChart(labels, data, `${titleName} (KRW) - ${rangeLabel}`);
+      setStatus(chartStatus, `${rangeLabel} · 데이터 포인트: ${data.length.toLocaleString("ko-KR")}개`);
+    }
+
     function rangeLabelForDays(days){
-      if (days === 1) return "1일";
-      if (days === 7) return "1주";
-      if (days === 30) return "1개월";
-      if (days === 90) return "3개월";
-      return "1년";
+      if (days === 1) return "1일 시세 내역";
+      if (days === 7) return "1주 시세 내역";
+      if (days === 30) return "1개월 시세 내역";
+      if (days === 90) return "3개월 시세 내역";
+      return "1년 시세 내역";
     }
 
     function destroyChart(){
@@ -913,7 +919,13 @@
           document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
           btn.classList.add("active");
           if (selectedCoin){
-            await selectCoin(selectedCoin);
+            try{
+              await updateChartRange();
+            }catch(e){
+              console.error(e);
+              setStatus(document.getElementById("chartStatus"), "차트를 표시할 수 없습니다. (API 제한/네트워크/CORS 가능)");
+              destroyChart();
+            }
           }
         });
       });

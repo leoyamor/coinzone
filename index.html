@@ -568,8 +568,8 @@
 
     async function cgMarketChart(id, days){
       // 기간별 차트 (vs_currency: krw)
-      const interval = days <= 2 ? "hourly" : "daily";
-      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=${days}&interval=${interval}`;
+      const interval = days <= 2 ? "" : "&interval=daily";
+      const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=krw&days=${days}${interval}`;
       return fetchJSON(url, "CoinGecko 차트 데이터 조회 실패"); // { prices: [[ts, price], ...], ... }
     }
 

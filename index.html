@@ -431,7 +431,9 @@
     const UPBIT_TICKER = "https://api.upbit.com/v1/ticker?markets=";
     const CORS_PROXIES = [
       { prefix: "https://api.allorigins.win/raw?url=", encode: true },
-      { prefix: "https://cors.isomorphic-git.org/", encode: false }
+      { prefix: "https://cors.isomorphic-git.org/", encode: false },
+      { prefix: "https://corsproxy.io/?", encode: true },
+      { prefix: "https://thingproxy.freeboard.io/fetch/", encode: false }
     ];
 
     const RECENT_KEY = "recent_coins_v1";
@@ -841,8 +843,11 @@
       }catch(e){
         console.error(e);
         const msg = e.message || String(e);
-        const hint = msg.includes("Failed to fetch") ? " (네트워크/CORS 문제일 수 있습니다)" : "";
-        setStatus(upbitStatus, `오류: ${msg}${hint}`);
+        if (msg.includes("Failed to fetch")){
+          setStatus(upbitStatus, "오류: 업비트 데이터를 불러오지 못했습니다. (네트워크/CORS 문제일 수 있습니다)");
+        }else{
+          setStatus(upbitStatus, `오류: ${msg}`);
+        }
       }
     }
 

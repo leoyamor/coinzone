@@ -526,7 +526,19 @@
 
     async function selectCoinFromUpbit(nameKo, nameEn, symbol){
       const upbitStatus = document.getElementById("upbitStatus");
+      const infoEl = document.getElementById("coinInfo");
+      const chartStatus = document.getElementById("chartStatus");
+      const displayName = (nameKo || nameEn || symbol || "선택한 코인").trim();
       setStatus(upbitStatus, "CoinGecko에서 매칭 중...");
+      selectedCoin = null;
+      selectedCoinDisplayName = null;
+      destroyChart();
+      infoEl.innerHTML = `
+        <p style="margin:0;color:var(--muted);font-size:13px;">
+          <b style="color:var(--text);">업비트에서 선택한 코인 매칭 중...</b> ${escapeHTML(displayName)}
+        </p>
+      `;
+      setStatus(chartStatus, "CoinGecko에서 차트 데이터를 찾는 중...");
 
       try{
         const baseName = nameEn || nameKo || "";
@@ -540,13 +552,30 @@
         if (!coins.length) throw new Error("CoinGecko 매칭 실패");
 
         const sym = String(symbol || "").toLowerCase();
-        const nameLower = String(nameEn || nameKo || "").toLowerCase();
-        let picked = coins.find(c =>
-          String(c.symbol || "").toLowerCase() === sym &&
-          String(c.name || "").toLowerCase() === nameLower
+        const nameCandidates = [nameEn, nameKo].filter(Boolean).map(n => String(n).toLowerCase());
+        const isShortSymbol = sym.length > 0 && sym.length <= 2;
+        const nameExactMatch = coins.find(c =>
+          nameCandidates.some(n => n === String(c.name || "").toLowerCase())
         );
-        if (!picked) picked = coins.find(c => String(c.symbol || "").toLowerCase() === sym);
-        if (!picked) picked = coins[0];
+        let picked = nameExactMatch || null;
+
+        if (!picked && nameCandidates.length){
+          picked = coins.find(c =>
+            nameCandidates.some(n => String(c.name || "").toLowerCase().includes(n))
+          );
+        }
+
+        if (!picked && sym){
+          const symbolMatches = coins.filter(c => String(c.symbol || "").toLowerCase() === sym);
+          if (symbolMatches.length === 1 && !isShortSymbol){
+            picked = symbolMatches[0];
+          }else if (symbolMatches.length >= 1 && nameCandidates.length){
+            picked = symbolMatches.find(c =>
+              nameCandidates.some(n => String(c.name || "").toLowerCase().includes(n))
+            );
+          }
+        }
+        if (!picked) throw new Error("CoinGecko 매칭 실패");
 
         await selectCoin({
           id: picked.id,
@@ -557,6 +586,12 @@
         setStatus(upbitStatus, `업비트 목록에서 ${picked.name} 선택됨`);
       }catch(e){
         setStatus(upbitStatus, `업비트 → CoinGecko 매칭 실패: ${e.message || String(e)}`);
+        infoEl.innerHTML = `
+          <p style="margin:0;color:#ffb0b0;font-size:13px;">
+            CoinGecko에서 "${escapeHTML(displayName)}" 매칭 실패로 시세 내역을 표시할 수 없습니다.
+          </p>
+        `;
+        setStatus(chartStatus, "차트를 표시할 수 없습니다. (CoinGecko 미상장/매칭 실패)");
       }
     }
 
